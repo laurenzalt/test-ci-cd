@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build:
+  # 1) Build und Test
+  build_and_test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -26,24 +30,24 @@ jobs:
       - name: Run Tests
         run: npm test
 
-  deploy:
-    needs: build
-    if: github.ref == 'refs/heads/main' && success()
+  # 2) Docker Build & Push
+  docker_build_and_push:
+    needs: build_and_test
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && success()
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v2
+        with:
+          # Diese Secrets müssen in GitHub hinterlegt werden
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build Docker Image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }} .
 
-      - name: Deploy to Heroku
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |
-          npm install -g heroku
-          # "Heroku login" via API-Key:
-          heroku auth:token 2>/dev/null || heroku login --apikey $HEROKU_API_KEY
-          heroku git:remote -a $HEROKU_APP_NAME
-          git push heroku main
+      - name: Push Docker Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
