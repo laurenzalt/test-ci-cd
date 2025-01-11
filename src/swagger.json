@@ -3,7 +3,7 @@
   "info": {
     "title": "User API",
     "version": "1.0.0",
-    "description": "Eine einfache API zur Verwaltung von Nutzern"
+    "description": "Test"
   },
   "servers": [
     {

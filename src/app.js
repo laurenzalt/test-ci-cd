@@ -135,7 +135,6 @@ const initializeServer = async () => {
   }
 };
 
-// Start server if not in test environment
 if (process.env.NODE_ENV !== "test") {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => {
