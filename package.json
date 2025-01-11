@@ -21,10 +21,10 @@
         "swagger-ui-express": "^5.0.1"
     },
     "devDependencies": {
-        "eslint": "^8.57.1",
+        "eslint": "^9.x.x",
         "jest": "^29.5.0",
         "nodemon": "^3.x.x",
-        "supertest": "^6.3.3"
+        "supertest": "^7.x.x"
     },
     "jest": {
         "testEnvironment": "node",
