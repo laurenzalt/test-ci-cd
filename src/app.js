@@ -78,20 +78,17 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-app.post(
-  "/api/users",
-  body("email").isEmail().withMessage("Invalid email format"),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-    try {
-      const user = await User.create(req.body);
-      res.status(201).json(user);
-    } catch (error) {
-      res.status(400).json({ error: error.message });
-    }
+app.post("/api/users", body("email").isEmail().withMessage("Invalid email format"), async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  try {
+    const user = await User.create(req.body);
+    res.status(201).json(user);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 app.put("/api/users/:id", async (req, res) => {
