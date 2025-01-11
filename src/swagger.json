@@ -1,0 +1,66 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "User API",
+    "version": "1.0.0",
+    "description": "Eine einfache API zur Verwaltung von Nutzern"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Lokaler Server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health-Check der API",
+        "responses": {
+          "200": {
+            "description": "API ist erreichbar"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "summary": "Liste aller Nutzer",
+        "responses": {
+          "200": {
+            "description": "Liste aller Nutzer",
+            "content": {
+              "application/json": {
+                "example": [
+                  { "id": 1, "name": "John Doe", "email": "john@example.com" }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Neuen Nutzer anlegen",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string" }
+                },
+                "required": ["name", "email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Nutzer erfolgreich erstellt"
+          }
+        }
+      }
+    }
+  }
+}
