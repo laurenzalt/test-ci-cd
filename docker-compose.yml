@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    container_name: ci-cd-demo
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DB_STORAGE: /app/data/demo.db
+      TEST_DB: /app/data/test.db
+      DB_LOGGING: "true"
+    volumes:
+      - .:/app
