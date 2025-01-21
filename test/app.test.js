@@ -1,28 +1,26 @@
 const request = require("supertest");
-const { expect } = require("chai");
 const { app, sequelize, User, initializeServer } = require("../src/app");
 
-// Mocha-Hooks
-before(async () => {
+beforeAll(async () => {
   await initializeServer();
 });
 
-after(async () => {
+afterAll(async () => {
   await sequelize.close();
 });
 
 beforeEach(async () => {
-  await User.destroy({ where: {} }); 
+  await User.destroy({ where: {} });
 });
 
 describe("API Tests", () => {
   describe("GET /health", () => {
     it("should return health status", async () => {
       const res = await request(app).get("/health");
-
-      expect(res.status).to.equal(200);
-      expect(res.body).to.have.property("status", "OK");
-      expect(res.body).to.have.property("timestamp");
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        status: "OK",
+      });
     });
   });
 
@@ -34,10 +32,9 @@ describe("API Tests", () => {
       };
 
       const res = await request(app).post("/api/users").send(userData);
-
-      expect(res.status).to.equal(201);
-      expect(res.body.name).to.equal(userData.name);
-      expect(res.body.email).to.equal(userData.email);
+      expect(res.status).toBe(201);
+      expect(res.body.name).toBe(userData.name);
+      expect(res.body.email).toBe(userData.email);
     });
 
     it("should get all users", async () => {
@@ -47,10 +44,9 @@ describe("API Tests", () => {
       });
 
       const res = await request(app).get("/api/users");
-
-      expect(res.status).to.equal(200);
-      expect(res.body).to.be.an("array");
-      expect(res.body.length).to.be.greaterThan(0);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0);
     });
 
     it("should get a specific user", async () => {
@@ -60,12 +56,12 @@ describe("API Tests", () => {
       });
 
       const res = await request(app).get(`/api/users/${user.id}`);
-
-      expect(res.status).to.equal(200);
-      expect(res.body.name).to.equal(user.name);
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe(user.name);
     });
 
     it("should update a user", async () => {
+      // Erstelle einen Test-User
       const user = await User.create({
         name: "Test User",
         email: "test@example.com",
@@ -79,8 +75,8 @@ describe("API Tests", () => {
         .put(`/api/users/${user.id}`)
         .send(updateData);
 
-      expect(res.status).to.equal(200);
-      expect(res.body.name).to.equal(updateData.name);
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe(updateData.name);
     });
 
     it("should delete a user", async () => {
@@ -90,11 +86,10 @@ describe("API Tests", () => {
       });
 
       const res = await request(app).delete(`/api/users/${user.id}`);
-
-      expect(res.status).to.equal(204);
+      expect(res.status).toBe(204);
 
       const deletedUser = await User.findByPk(user.id);
-      expect(deletedUser).to.be.null;
+      expect(deletedUser).toBeNull();
     });
   });
 });
