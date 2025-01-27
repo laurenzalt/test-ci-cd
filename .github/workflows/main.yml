@@ -33,7 +33,7 @@ jobs:
         run: NODE_ENV=test npm run coverage
 
       - name: Upload coverage report (optional)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/ 
@@ -43,8 +43,7 @@ jobs:
 
   docker_build_and_push:
     needs: build_and_test
-    runs-on: ubuntu-latest
-    # docker-image nur bauen, wenn test erfolgreich waren
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main' && success()
     steps:
       - name: Checkout Repository
@@ -61,3 +60,33 @@ jobs:
 
       - name: Push Docker Image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
+
+  security_scan:
+    needs: docker_build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Start Application with Docker Compose
+        run: docker-compose up -d
+        env:
+          NODE_ENV: development
+
+      - name: Pull OWASP ZAP Docker Image
+        run: docker pull owasp/zap2docker-stable
+
+      - name: Run OWASP ZAP Security Scan
+        run: |
+          docker run --network="host" owasp/zap2docker-stable zap-baseline.py \
+          -t http://localhost:3000 \
+          -r zap_report.html
+
+      - name: Upload OWASP ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-security-report
+          path: zap_report.html
+
+      - name: Stop Application
+        run: docker-compose down
