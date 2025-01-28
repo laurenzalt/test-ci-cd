@@ -14,7 +14,7 @@ on:
 
 jobs:
   test_and_lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -59,7 +59,7 @@ jobs:
 
   build:
     needs: test_and_lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -101,19 +101,14 @@ jobs:
       - name: Determine Docker tag
         id: tag
         run: |
-          # Default Tag
           echo "DOCKER_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
 
-          # Wenn auf main gepusht wird -> latest
           if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
             echo "DOCKER_TAG=latest" >> $GITHUB_ENV
           fi
 
-          # Falls man einen Versionstag (z.B. v1.2.3) hat
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Hier Tag ohne 'refs/tags/' und ohne 'v' extrahieren
             VERSION_TAG="${GITHUB_REF#refs/tags/}"
-            # Wenn du den 'v' entfernen willst:
             VERSION_TAG="${VERSION_TAG#v}"
             echo "DOCKER_TAG=${VERSION_TAG}" >> $GITHUB_ENV
           fi
