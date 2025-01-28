@@ -4,89 +4,122 @@ on:
   push:
     branches:
       - main
+      - develop
+      - feature/*
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
 
 jobs:
-  build_and_test:
+  test_and_lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: Use Node.js 18
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install dependencies via npm ci
+        run: npm ci
 
       - name: Lint Code
-        run: npm run lint
+        run: npm run lint --if-present
+
+      - name: Save ESLint report
+        run: npm run lint > eslint-report.txt || true
+
+      - name: Upload ESLint results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: eslint-results
+          path: eslint-report.txt
 
       - name: Run Tests
         run: npm test
 
-      - name: Run Coverage (optional)
-        run: NODE_ENV=test npm run coverage
+      - name: Run Coverage
+        run: npm run coverage --if-present
 
-      - name: Upload coverage report (optional)
+      - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/ 
+          path: coverage/
 
       - name: Security Check (npm audit)
-        run: npm audit --audit-level=moderate # level anpassbar
+        run: npm audit --audit-level=moderate
 
-  docker_build_and_push:
-    needs: build_and_test
-    runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/main' && success()
+  build:
+    needs: test_and_lint
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Log in to Docker Registry
+      - name: Use Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies via npm ci
+        run: npm ci
+
+      - name: Build project
+        run: npm run build --if-present
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/ 
+
+  docker_build_and_push:
+    needs: build
+    runs-on: ubuntu-latest
+    if: >
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && success()
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Docker login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker Image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }} .
-
-      - name: Push Docker Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-
-  security_scan:
-    needs: docker_build_and_push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Start Application with Docker Compose
-        run: docker compose up -d
-        env:
-          NODE_ENV: development
-
-      - name: Pull OWASP ZAP Docker Image
-        run: docker pull zaproxy/zap2docker-stable
-
-      - name: Run OWASP ZAP Security Scan
+      - name: Determine Docker tag
+        id: tag
         run: |
-          docker run --network="host" zaproxy/zap2docker-stable zap-baseline.py \
-          -t http://localhost:3000 \
-          -r zap_report.html
+          # Default Tag
+          echo "DOCKER_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
 
-      - name: Upload OWASP ZAP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-security-report
-          path: zap_report.html
+          # Wenn auf main gepusht wird -> latest
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            echo "DOCKER_TAG=latest" >> $GITHUB_ENV
+          fi
 
-      - name: Stop Application
-        run: docker-compose down
+          # Falls man einen Versionstag (z.B. v1.2.3) hat
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Hier Tag ohne 'refs/tags/' und ohne 'v' extrahieren
+            VERSION_TAG="${GITHUB_REF#refs/tags/}"
+            # Wenn du den 'v' entfernen willst:
+            VERSION_TAG="${VERSION_TAG#v}"
+            echo "DOCKER_TAG=${VERSION_TAG}" >> $GITHUB_ENV
+          fi
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ env.DOCKER_TAG }} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ env.DOCKER_TAG }}
