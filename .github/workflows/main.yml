@@ -74,11 +74,11 @@ jobs:
           NODE_ENV: development
 
       - name: Pull OWASP ZAP Docker Image
-        run: docker pull owasp/zap2docker-stable
+        run: docker pull zaproxy/zap2docker-stable
 
       - name: Run OWASP ZAP Security Scan
         run: |
-          docker run --network="host" owasp/zap2docker-stable zap-baseline.py \
+          docker run --network="host" zaproxy/zap2docker-stable zap-baseline.py \
           -t http://localhost:3000 \
           -r zap_report.html
 
