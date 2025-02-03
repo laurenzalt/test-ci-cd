@@ -116,7 +116,7 @@ jobs:
       - name: Push Docker Image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
 
-  deploy:
+  deploy_and_scan:
     needs: docker_build_and_push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && success()
@@ -124,34 +124,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.DEPLOYMENT_SERVER }}
-          username: ${{ secrets.DEPLOYMENT_USER }}
-          key: ${{ secrets.DEPLOYMENT_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-            docker stop ci-cd-demo || true
-            docker rm ci-cd-demo || true
-            docker run -d --name ci-cd-demo -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-
-  owasp_scan:
-    needs: deploy
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && success()
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Wait for page to be accessible
+      - name: Run Container Locally
         run: |
-          echo "Waiting for the application to be accessible..."
+          docker run -d --name ci-cd-demo -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
+          # Warte, bis die Anwendung vollständig gestartet ist
+          sleep 20
+
+      - name: Wait for Application to be Accessible
+        run: |
+          echo "Waiting for the application to be accessible on localhost..."
           until curl --silent --fail "http://localhost:3000"; do
             echo "Waiting for the server to be ready..."
             sleep 5
           done
-          echo "Server is now accessible."
+          echo "Application is accessible."
 
       - name: Install OWASP ZAP
         run: |
@@ -168,3 +154,8 @@ jobs:
         with:
           name: zap-scan-report
           path: /tmp/zap-report.html
+
+      - name: Stop and Remove Container
+        run: |
+          docker stop ci-cd-demo
+          docker rm ci-cd-demo
