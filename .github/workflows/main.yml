@@ -116,26 +116,55 @@ jobs:
       - name: Push Docker Image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
 
-  owasp_scan:
+  deploy:
     needs: docker_build_and_push
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && success()
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Start Application Container for Scan
-        run: |
-          docker run -d --name myapp -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-          sleep 20
-
-      - name: Run OWASP ZAP Scan
-        uses: zaproxy/action-full-scan@v0.12.0
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.5
         with:
-          target: http://localhost:3000
-          docker_name: owasp/zap2docker-stable:latest
+          host: ${{ secrets.DEPLOYMENT_SERVER }}
+          username: ${{ secrets.DEPLOYMENT_USER }}
+          key: ${{ secrets.DEPLOYMENT_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
+            docker stop ci-cd-demo || true
+            docker rm ci-cd-demo || true
+            docker run -d --name ci-cd-demo -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
 
-      - name: Stop Application Container
+  owasp_scan:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && success()
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Wait for page to be accessible
         run: |
-          docker stop myapp
-          docker rm myapp
+          echo "Waiting for the application to be accessible..."
+          until curl --silent --fail "http://localhost:3000"; do
+            echo "Waiting for the server to be ready..."
+            sleep 5
+          done
+          echo "Server is now accessible."
 
+      - name: Install OWASP ZAP
+        run: |
+          sudo apt update
+          sudo apt install -y snapd
+          sudo snap install zaproxy --classic
+
+      - name: Run OWASP ZAP Security Scan
+        run: |
+          zaproxy -cmd -quickurl http://localhost:3000 -quickout /tmp/zap-report.html
+
+      - name: Upload ZAP Scan Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-scan-report
+          path: /tmp/zap-report.html
