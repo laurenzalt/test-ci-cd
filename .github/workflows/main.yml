@@ -104,17 +104,43 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && success()
     steps:
-      - name: Deploy to DigitalOcean Droplet via SSH
+      - name: Deploy to Remote Server via SSH
         uses: appleboy/ssh-action@v0.1.5
         with:
-          host: ${{ secrets.DIGITALOCEAN_IP }}
-          username: ${{ secrets.DIGITALOCEAN_USER }}
-          key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
+          host: ${{ secrets.REMOTE_SERVER_IP }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_SERVER_SSH_KEY }}
           script: |
             echo "Pulling new Docker image..."
             docker pull ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-            echo "Stopping and removing old container (if exists)..."
+            echo "Stopping old container (if exists)..."
             docker stop ci-cd-demo || true
             docker rm ci-cd-demo || true
             echo "Starting new container..."
             docker run -d --name ci-cd-demo -p 80:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
+
+  security_scan:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Application to be Accessible
+        run: |
+          echo "Waiting for the deployed application..."
+          until curl --silent --fail "http://${{ secrets.DEPLOYED_APP_URL }}"; do
+            echo "Waiting for the application to be ready..."
+            sleep 5
+          done
+          echo "Application is accessible."
+      - name: Install OWASP ZAP
+        run: |
+          sudo apt update
+          sudo apt install -y snapd
+          sudo snap install zaproxy --classic
+      - name: Run OWASP ZAP Security Scan
+        run: |
+          zaproxy -cmd -quickurl http://${{ secrets.DEPLOYED_APP_URL }} -quickout /tmp/zap-report.html
+      - name: Upload ZAP Scan Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-scan-report
+          path: /tmp/zap-report.html
