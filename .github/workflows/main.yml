@@ -4,117 +4,114 @@ on:
   push:
     branches:
       - main
-      - develop
-      - feature/*
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
 
 jobs:
-  test_and_lint:
-    runs-on: ubuntu-24.04
+  lint:
+    runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Use Node.js 18
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: 'npm'
 
-      - name: Install dependencies via npm ci
-        run: npm ci
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Dependencies
+        run: npm install
 
       - name: Lint Code
-        run: npm run lint --if-present
+        run: npm run lint
 
-      - name: Save ESLint report
-        run: npm run lint > eslint-report.txt || true
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Upload ESLint results
-        if: always()
-        uses: actions/upload-artifact@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          name: eslint-results
-          path: eslint-report.txt
+          node-version: 18
+
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Dependencies
+        run: npm install
 
       - name: Run Tests
         run: npm test
 
-      - name: Run Coverage
-        run: npm run coverage --if-present
+      - name: Run Coverage (optional)
+        run: NODE_ENV=test npm run coverage
 
-      - name: Upload coverage report
-        if: always()
+      - name: Upload Coverage Report (optional)
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
 
-      - name: Security Check (npm audit)
-        run: npm audit --audit-level=moderate
-
-  build:
-    needs: test_and_lint
-    runs-on: ubuntu-24.04
+  audit:
+    runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Use Node.js 18
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: 'npm'
 
-      - name: Install dependencies via npm ci
-        run: npm ci
-
-      - name: Build project
-        run: npm run build --if-present
-
-      - name: Upload build artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Cache node_modules
+        uses: actions/cache@v3
         with:
-          name: build-artifacts
-          path: build/ 
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Security Check (npm audit)
+        run: npm audit --audit-level=moderate
 
   docker_build_and_push:
-    needs: build
+    needs:
+      - lint
+      - test
+      - audit
     runs-on: ubuntu-latest
-    if: >
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && success()
+    if: github.ref == 'refs/heads/main' && success()
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Docker login
+      - name: Log in to Docker Registry
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Determine Docker tag
-        id: tag
-        run: |
-          echo "DOCKER_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+      - name: Build Docker Image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }} .
 
-          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
-            echo "DOCKER_TAG=latest" >> $GITHUB_ENV
-          fi
-
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VERSION_TAG="${GITHUB_REF#refs/tags/}"
-            VERSION_TAG="${VERSION_TAG#v}"
-            echo "DOCKER_TAG=${VERSION_TAG}" >> $GITHUB_ENV
-          fi
-
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ env.DOCKER_TAG }} .
-
-      - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ env.DOCKER_TAG }}
+      - name: Push Docker Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
