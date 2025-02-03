@@ -126,13 +126,13 @@ jobs:
       - name: Start Application Container for Scan
         run: |
           docker run -d --name myapp -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/ci-cd-demo:${{ github.sha }}
-          # Warte etwas, bis die Anwendung vollständig hochgefahren ist
           sleep 20
 
       - name: Run OWASP ZAP Scan
         uses: zaproxy/action-full-scan@v0.4.0
         with:
           target: http://localhost:3000
+          docker_image: owasp/zap2docker-stable:latest
 
       - name: Stop Application Container
         run: |
