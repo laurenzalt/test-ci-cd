@@ -52,6 +52,10 @@ const User = sequelize.define("User", {
 });
 
 // Routes
+app.get("/", (req, res) => {
+  res.send("Willkommen zu meiner Anwendung!");
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date() });
 });

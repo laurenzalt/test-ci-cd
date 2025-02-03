@@ -12,6 +12,21 @@
     }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "summary": "Root-Endpunkt",
+        "responses": {
+          "200": {
+            "description": "Begrüßungsnachricht",
+            "content": {
+              "text/plain": {
+                "example": "Willkommen zu meiner Anwendung!"
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health-Check der API",
